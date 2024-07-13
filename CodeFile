@@ -1,0 +1,71 @@
+import Map "mo:base/HashMap";
+import Hash "mo:base/Hash";
+import Nat "mo:base/Nat";
+import Iter "mo:base/Iter";
+import Text "mo:base/Text";
+import Time "mo:base/Time";
+import Principal "mo:base/Principal";
+
+actor {
+
+  type Post = {
+    author : Principal;
+    content : Text;
+    timestamp : Time.Time;
+  };
+
+  func natHash(n : Nat) : Hash.Hash {
+    return Text.hash(Nat.toText(n));
+  };
+
+  var posts = Map.HashMap<Nat, Post>(0, Nat.equal, natHash); // Id ler ile eşleştirilen HashMap
+  var archivedPosts = Map.HashMap<Nat, Post>(0, Nat.equal, natHash); // Id ler ile eşleştirilen arşiv HashMap
+  var nextId : Nat = 0;  // bir sonraki id değişkenini tutar.
+
+  // Tüm gönderileri getirme işlemi
+  public query func getPosts() : async [(Nat, Post)] {
+    // Tüm gönderileri döndüren query fonksiyonu
+    return Iter.toArray(posts.entries()); // HashMap içindeki tüm gönderileri diziye dönüştürüyor
+  };
+
+  // Yeni gönderi ekleme işlemi
+  public shared (msg) func addPost(content : Text) : async Text {
+    // Yeni gönderi ekleyen fonksiyon
+    let id = nextId; // Yeni gönderi ID'si oluşturuluyor
+    posts.put(id, { author = msg.caller; content = content; timestamp = Time.now() }); // Gönderi HashMap'e ekleniyor
+    nextId += 1; // Bir sonraki gönderi ID'si artırılıyor
+
+    // Frame content
+    let frame = "\n****************************\n";
+    let message = "* Gönderi başarıyla eklendi. Gönderi ID'si: " # Nat.toText(id) # " *\n";
+    return frame # message # frame; // Sonuç metni döndürülüyor
+  };
+  
+  // Belirli bir gönderiyi görüntüleme işlemi
+  public query func viewPost(id : Nat) : async ?Post {
+    // Belirli bir gönderiyi döndüren query fonksiyonu
+    return posts.get(id); // Gönderiyi ID'si ile getiriyor
+  };
+
+  // Belirli bir gönderiyi arşivleme işlemi
+  public func archivePost(id : Nat) : async Text {
+    switch (posts.remove(id)) {
+      case (?post) {
+        archivedPosts.put(id, post);
+        return "Gönderi başarıyla arşivlendi. Gönderi ID'si: " # Nat.toText(id);
+      };
+      case null {
+        return "Gönderi bulunamadı. Gönderi ID'si: " # Nat.toText(id);
+      };
+    };
+  };
+
+  // Tüm gönderileri temizleme işlemi
+  public func clearPosts() : async () {
+    // Tüm gönderileri temizleyen fonksiyon
+    for (key in posts.keys()) {
+      // HashMap içindeki tüm anahtarları alıyor
+      ignore posts.remove(key); // Gönderileri temizliyor
+    };
+  };
+};
